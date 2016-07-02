@@ -1,0 +1,373 @@
+\documentclass[ebook,10pt,oneside,openany]{memoir}
+
+% set layout
+\fixpdflayout
+\setlength{\trimtop}{0pt}
+\setlength{\trimedge}{\stockwidth}
+\addtolength{\trimedge}{-\paperwidth}
+\settypeblocksize{6in}{4in}{*}
+\setheadfoot{\onelineskip}{2\onelineskip}
+\setheaderspaces{*}{2\onelineskip}{*}
+\checkandfixthelayout
+
+% include
+\usepackage[utf8x]{inputenc}
+\usepackage[english]{babel}
+\usepackage{url}
+\usepackage{authblk}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{float}
+\usepackage{pgfplots}
+\usepackage{hyperref}
+
+% use listings and set up listings
+\usepackage{listings}
+\usepackage{color}
+ 
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+ 
+\lstdefinestyle{mystyle}{
+    backgroundcolor=\color{backcolour},   
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{magenta},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\tiny,
+    breakatwhitespace=false,         
+    breaklines=true,                 
+    captionpos=b,                    
+    keepspaces=true,                 
+    numbers=left,                    
+    numbersep=5pt,                  
+    showspaces=false,                
+    showstringspaces=false,
+    showtabs=false,                  
+    tabsize=2
+}
+ 
+\lstset{style=mystyle}
+
+% for placeholder text
+\usepackage{lipsum}
+
+\title{\textbf{Introduction to OpenACC:} \\
+\textbf{Multi-platform Directive-based Parallelism}}
+\author{Yiru Sun, Chen Chen, Hengjiu Kang}
+
+\date{9 June 2016\thanks{First drafted on 29 May 2016}}
+
+\begin{document}
+\maketitle
+
+% Abstract
+\begin{abstract} This is an OpenACC tutorial for beginners who want to write parallel programs with OpenACC directives. This tutorial is written under the class framework of ECS158 Parallel Programming taught by Professor Matloff in University of California, Davis.\end{abstract}
+
+\newpage
+\tableofcontents
+\listoftables
+\lstlistoflistings
+
+% Content
+\chapter{Introduction}
+\section{What Exactly is OpenACC?}
+OpenACC is a directive-based programming model that brings portability and ease of use to parallel programming. To understand how it works, it is important to have some prior knowledge about OpenMP and CUDA. Long story short, OpenACC is similar to OpenMP in a sense that both use directives to signal compilers what to do with the code. On top of that, OpenACC has added portability so that programs written with OpenACC can be easily ported to work with multiple platforms such as CUDA. This introduction will explain the significance of OpenACC and offer code examples to show how to start writing parallel programs with OpenACC directives.
+
+\section{Motivations and Significance}
+Modern image processing and machine learning tasks require more and more computational resources. Computer scientists around the world have been trying to address this ever-growing demand by turning to parallel computing. However, shifting to parallel programming is by no means apparent. While proper implementations of parallel algorithms offer potential performance improvements in tasks such as matrix operations, non-optimized ones could even hinder the performance when compared with their serial counterparts. In order to hide programmers from the hassles of tricky low-level implementations, many parallel libraries and extensions have been developed to help programmers write parallel softwares more easily and promise to deliver reasonable results. Among those libraries, OpenMP is deemed by many as \textit{"the \textbf{de facto} standard for shared-memory programming"}\cite{matloff}. It is a software implementation that can be deployed on most of the multi-core CPU systems. OpenMP uses pragma directives that are relatively easy to program and can be ignored by compilers that don't understand them. Great convenience is probably one of the many reasons why OpenMP has been so successful, and the use of directives went on to inspire the interface of OpenACC as we will discuss later in detail.
+
+Besides OpenMP, another very important event that has vastly shaped parallel programming and inspired OpenACC is the advent of general-purpose graphics processing unit (GPGPU). GPGPUs are very good at running parallel programs because they are packed with so many processing units in them. Over the years, the companies that design and manufacture GPGPUs have offered programmers with some interfaces and standards to interact with GPGPUs. One example is CUDA which was introduced by NVIDIA in order to interact with CUDA-enabled NVIDIA graphic cards. Despite the great potential of CUDA in performance improvement, many programmers are deterred by the horrendous details and efforts that go into writing a robust and efficient CUDA program. Some called for simpler interfaces which still reap the benefits of the massive parallelism offered by GPGPUs.
+
+In a nutshell, OpenACC was born to inherit the ease of use of directive-based interfaces such as OpenMP, and was designed to be very portable across different platforms such as NVIDIA GPU, AMD Radeon, x86/ARM CPU and Intel Xeon Phi. In the following chapters, we will explore OpenACC directives in greater details by using an introductory matrix multiplication example and two homework problems adapted from ECS158 coursework. It is worth-noting that the code examples in this introduction are in C style.
+
+\section{What Will Be Covered and What Will Not}
+
+This introduction will focus on how to use OpenACC directives to parallelize portions of the code (usually \textbf{for loops}), and how to optimize data locality to minimize unnecessary data transfer overheads. This introduction will not cover hardware-specific optimization, interoperability and other advanced features.
+
+Please refer to OpenACC.org\cite{openacc} for more information.
+
+\section{Setting up Environment Variables for Omni ompcc Compiler}
+
+The compiler of choice of this tutorial is Omni \textbf{ompcc} on UC Davis CSIF machines. In order to use ompcc and its backends properly, we need to configure some environment variables first. The following scripts can be written into $\sim$/.login file to run automatically when logging in, or they can be run manually. \\
+
+\lstinputlisting[language=sh, caption=mmul\_acc]{login.txt}
+
+To compile OpenACC GPU code with ompcc:
+
+\textbf{ompcc -o \textlangle{}outputfile name\textrangle{} -acc \textlangle{}input c source code\textrangle{}} \\
+
+To compile OpenACC CPU code with ompcc:
+
+\textbf{ompcc -o \textlangle{}outputfile name\textrangle{} \textlangle{}input c source code\textrangle{}}
+
+\chapter{Matrix Multiplication: Connecting C, OpenMP and CUDA to OpenACC}
+
+\section{Why Matrix Multiplication}
+
+In this chapter, we will show you different versions of a simple matrix multiplication example that are written in C, OpenMP and CUDA. Then we will try to link different aspects of C, OpenMP and CUDA to the design of OpenACC. We choose to start with matrix multiplication for it is one of the most important operations in science and engineering, which has sprung many modern applications such as image processing and voice recognition. The examples in this chapter should be relative easy to understand and mainly serve to refresh your memory. The detailed implementations can be skipped.
+
+\section{Matrix Multiplication in C}
+
+We started by writing a matrix multiplication function in C.
+
+\lstinputlisting[language=C,caption=mmul\_c]{mmul.c}
+
+\section{Matrix Multiplication in OpenMP}
+
+Now we can turn the mmul function written in C into a parallel version by using OpenMP directives. \\
+
+\lstinputlisting[language=C,caption=mmul\_omp]{mmul_omp.c}
+
+The mmul\_omp example above shows usage of OpenMP. Each thread executes individually at the \textbf{pragma omp parallel} directive, and the for loop is parallelized by using the \textbf{pragma omp for} directive. The designers of OpenACC adopted the concept of directives and they came up with their own versions of the similar directives in OpenACC. \\
+
+\section{Matrix Multiplication in CUDA}
+
+CUDA is parallel platform that interfaces with NVIDIA GPUs. Matrix Multiplication can also be performed on a GPU as shown below.
+
+\lstinputlisting[language=C,caption=mmul\_cuda]{mmul_cuda.c}
+% this extension is designed for matrix operations
+
+Two key features of CUDA inspired OpenACC design are the explicit allocation of memory and transfer of data. With CUDA, programmers have decent control over data flow and memory allocation, which enables them to optimize data locality. OpenACC designers also want programmers to have some degree of control over data and memory, so they incorporate some special directives and structures dedicated to the purpose of data locality optimization. By reducing the overheads of data movement, a parallel program can see great performance improvement. \\
+
+Another important design detail of CUDA is the separation between host memory space and device memory space. Device memory space can be thought of as a programmer-managed cache which is crucial to the performance of a GPU program. The unnecessary transfer of data between host and device often causes huge performance problem and OpenACC offers some directives to control and manage the transfer of data between them. \\
+
+Up until this point, chapter 2 has established connections between C, OpenMP, CUDA and OpenACC. Chapter 3 will introduce OpenACC in greater details.
+
+
+\chapter{Introduction to OpenACC}
+\section{Available Compilers}
+OpenACC offers a set of directives to suggest compilers what to do with the code, but the backend implementation depends on the compiler and flags being used. The list below shows several OpenACC compatible compilers.
+
+\begin{table}[H]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{|l|l|l|l|l|}
+\hline
+Name & Developer & Commercial & Backend & Platform \\ \hline
+Omni & Omni Compiler Project & NO & CUDA & X86 Only \\ \hline
+accULL & High Performance Computing Group & NO & CUDA/OpenCL & ARM/X86 \\ \hline
+GNU-Openacc & GNU project & NO & CUDA/OpenCL & Not complete \\ \hline
+PGI & PGI & YES & CUDA/OpenCL & X86 Only \\ \hline
+\end{tabular}%
+}
+\caption{OpenACC compilers}
+\label{my-label}
+\end{table}
+
+As mentioned in the introductory chapter, we are using Omni ompcc compiler in this tutorial.
+
+\section{Basic Directives}
+Just like OpenMP, OpenACC uses directives to communicate with compilers. Below is a list of basic directives that are useful in starting off with OpenACC.
+\begin{enumerate}
+\item \textbf{\#pragma acc kernels} \\
+\textbf{kernels} construct is probably the easiest one to work with. It can be placed before a for loop to signal the compiler that the for loop immediately after \textbf{kernels} directive might be parallelized. That being said, it is up to the compiler to decide whether the parallelism is going to happen and the outcome is not guaranteed. \textbf{kernels} is suitable for inexperienced programmers and cases where the loops are too complicated to analyze.
+
+\item \textbf{\#pragma acc parallel} \\
+\textbf{parallel} construct is similar to \textbf{\#pragma acc kernels}, but it goes further and tells the compiler explicitly that the for loop immediately below can be parallelized. The programmer is responsible for making sure that the loop is safe to parallelize. It is worth noting that \textbf{parallel} needs to be used with another directive to properly function.
+ 
+\item \textbf{\#pragma acc loop [options]} \\
+\textbf{loop} directive is usually used together with \textbf{parallel} directive in the form of  \textbf{\#pragma acc parallel loop} in order to signal the compiler to parallelize the loop immediately after the resultant directive.
+
+\item \textbf{\#pragma acc data [options]} \\
+\textbf{data} construct of OpenACC precedes a special set of clauses for data transfer and memory allocation. The options of \textbf{data} directive are similar to a combination of CUDA functions working collectively. For example, the \textbf{copy} clause can be used to form \textbf{\#pragma acc data copy(A)} and the resultant directive is similar to the following CUDA pseudocode:
+
+\lstinputlisting[language=C,caption=data\_copy\_CUDA]{data_copy_CUDA.c}
+
+\end{enumerate}
+
+
+\section{Matrix Multiplication in OpenACC}
+We can now implement matrix multiplication in OpenACC. The following code is based on the C version of matrix multiplication in Chapter 2. \\
+\lstinputlisting[language=C,caption=mmul\_acc]{mmul_acc.c}
+
+In this example, we use the following directives to implement parallelism:
+\begin{itemize}
+\item \#pragma acc data create(A, B) \\
+A and B are two input matrices and will not be retrieved from the device after the computations are finished. So it is safe to use \textbf{data create} construct instead of \textbf{data copy} to create dedicated memory space for A and B in the device but do not initialize or copy back to host after the job has been done. This move is usually very effective in improving data locality and reduce communication overhead.
+\item \#pragma acc parallel loop\\
+This directive enables loop optimization and parallelism as we mentioned in point 3 of 3.2.
+\item \#pragma acc loop \\
+Inside a nested for-loop, we need to use \textbf{\#pragma acc parallel loop} first right before the outermost for-loop, then use \textbf{ \#pragma acc loop} in the inner for-loop to signal further parallelization.
+\item reduction(+:temp\_sum) \\
+\textbf{reduction} is a special directive in OpenACC. It can monitor the value of a certain variable (in this case: temp\_sum), perform a certain function (in this case: +) to the variable and reduce the results of all the operations into one single result. One of the following basic functions can act as a reduction function: \textbf{+, *, min, max}.
+\end{itemize}
+
+\subsection{Performance comparison in directives}
+Also, we need to be aware that, different directives have different optimization performance, and the performance depends on each application. For example, we want \textbf{for loop} optimization and \textbf{reduce} optimization for dot multiplication summation. In other application, like path-finding algorithm, we may want to create on-device memory space for faster variable access, because path-finding is memory accessing massive algorithm. \\
+In this section, we compare the improvement of each directive to original program step by step. When we are using GCC to compile plain-C code without any flag, the execution time is about 12 seconds.
+
+\begin{tikzpicture}
+\begin{axis}[
+    symbolic x coords={Plain-C, for-loop, data, reduction, complete},
+        ylabel = {Time-elapse(S)},
+        xlabel = {Optimization Directives},
+    xtick=data,
+    nodes near coords={\pgfmathprintnumber\pgfplotspointmeta s}]
+    \addplot[ybar,fill=white] coordinates {
+        (Plain-C,2.237)
+        (for-loop,2.237)
+        (data,2.238)
+    (reduction, 2.237)
+    (complete,2.237)
+    };
+\end{axis}
+\end{tikzpicture}
+\\
+We found that the differences between directives are not significant, which is out of expectation. An possible explanation is that this Matrix multiplication is an typical application that ompcc can easily maximize the optimization. So it is reasonable that ompcc compiled plain-C code is already 5 times faster than gcc compiler, and user added customized directives will be ignored or have the same effect.
+
+
+\subsection{Performance Comparison between Difference Libraries}
+Our test program performs a 50*50 matrix multiplication for 30000 times, and the following time elapse data were recorded from running the command: time mmul\_\textbf{x}.out, where \textbf{x} refers to c, acc or omp \\
+
+\begin{tikzpicture}
+\centering
+\begin{axis}[
+    symbolic x coords={PlainC, OpenACC, OpenMP},
+        ylabel = {Time elapse (s)},
+        xlabel = {Parallel Library},
+    xtick=data,
+    nodes near coords={\pgfmathprintnumber\pgfplotspointmeta s}]
+    \addplot[ybar,fill=white] coordinates {
+        (PlainC,11.970)
+        (OpenACC,2.237)
+        (OpenMP,9.520)
+    };
+\end{axis}
+\end{tikzpicture}
+
+\paragraph{}
+It is easily observed that the performance improvement by using OpenACC directives is enormous in the case of matrix multiplication, partly because it is embarrassingly parallel and therefore benefit largely from the use of parallel computing. \\
+
+Chapter 3 has covered most of the OpenACC directives in detail. The following two chapters will introduce some code examples to show how OpenACC can be applied in various applications.
+
+\chapter{OpenACC Example 1: Path Finder}
+
+This chapter is all about OpenACC in action and a new \textbf{atomic update} directive for critical region access. We use OpenACC to parallelize a path finder program originally written in C. \\
+
+The path finder program takes an adjacency matrix and find all possible paths of length \textbf{k} that are connected, starting from a given vertex. Repeated vertices are allowed.  \\
+
+For example, if \textbf{k} is 5 and row i of paths is 99 2 0 3 8 88 \\
+This is the path 99 → 2 → 0 → 3 → 8 → 88 \\
+Loops are allowed, e.g. 5 → 2 → 0 → 2 → 0 → 88 \\
+
+Here is a list of arguments taken by the path finder function: \\
+\textbf{adjm}: Adjacency matrix of a directed graph.\\
+\textbf{n}: Number of vertices in the graph.\\
+\textbf{k}: Length of each path.\\
+\textbf{paths}: Output matrix of paths.\\
+\textbf{numpaths}: Number of paths.\\
+
+The output matrix: \textbf{paths}, will have \textbf{numpaths} rows and \textbf{k}+1 columns, and likely to have unused rows at the bottom. The space will be pre-allocated in the main function.
+
+
+
+Here is the C code to implement the path finder:
+\lstinputlisting[language=C,caption=path]{path.c}
+\paragraph{}
+To look for paths with length of 4, each path would have 5 vertices. Since loop is allowed and we have a total of n vertexes, we would check all possible paths from 0 → 0 → 0 → 0 → 0 to n → n → n → n → n. \\
+
+The total run times would be n to the power of 5 in line 20. Let's give an order to these vertexes: i → j → k → l → m. We need to check each path in the matrix to make sure the whole path is correct.
+If m\textsubscript{i,j} equals 1, there is a path from i to j. Thus, we would check m\textsubscript{i,j}, m\textsubscript{j,k}, m\textsubscript{k,l} and m\textsubscript{l,m} in line 31.
+If the path exists, we count it and put it into the output path matrix. \\
+
+Here is the modified OpenACC version with parallelism.
+
+\lstinputlisting[language=C,caption=path\_acc]{path_acc.c}
+
+The OpenACC version of the path finder code is pretty standard and tested to render about twice the speed compared with its serial counterpart. Our code is by no means efficient and more parallelism and data locality optimization can be done. The purpose of this example is to point out a very important aspect of parallel programming: critical region access and synchronization.
+
+\textbf{\#pragma acc atomic update} directive in line 44 signals to the compiler that the line immediately after is a critical region access. This is crucial especially in shared-memory implementation due to potential race conditions.
+
+\chapter{OpenACC Example 2: Bright Spot Counter}
+
+\paragraph{}
+Consider an n x n matrix of image pixels, with brightness values in the range of [0,1]. A bright spot of size k and threshhold b is defined as a k x k subimage, with the pixels being contiguous and with each one having brightness at least b. Here is a C program that returns a count of all bright spots. \\
+
+Here is a list of arguments taken by the bright spot counter function: \\
+\textbf{n} is matrix dimension\\ 
+\textbf{k} is subimage dimension\\ 
+\textbf{start} and end are for parallelism\\
+\textbf{pix} is the pointer to the matrix.\\
+
+\lstinputlisting[language=C,caption=Brightcounter]{countstar.c}
+\paragraph{}
+We run the function brights() for 1000 times to get a significantly high run time for the sake time analysis. In the function brightssplit(), the program searches the matrix row by row with the for loop in line 23. Then it checks if there are \textbf{k} numbers of continuous bright pixels from line 29 and store the information in the first row of \textbf{pix} matrix. When the program checks each row, it adds the information to the first row of \textbf{pix} matrix. Finally, the program calculates the data in the first row of \textbf{pix} matrix and outputs the number of bright spots. \\
+
+Here is the modified OpenACC version with parallelism.
+
+
+\lstinputlisting[language=C,caption=Brightcounter\_acc]{countstar_acc.c}
+
+The OpenACC directives in this bright spot finder program have been introduced in greater details in Chapter 3. However, it is worth noting that many constructs can be stacked together to achieve a more compact code, just like \textbf{\#pragma acc parallel loop reduction(+:count)} in line 78.
+
+
+\begin{appendices}
+\chapter{Contribution}
+Thanks to each of the group members, Chen chen, Yiru Sun and Hengjiu Kang. \\
+Chen chen mainly worked on Chapter 1 and Chapter 2, Yiru Sun worked on Chapter 4 and Chapter 5. Hengjiu Kang worked on source code porting and Chapter 3.\\
+We started the first draft since May.29 2016, and we were working together through the Final weeks. Finally we finished the tutorial on June.9 2016.
+
+\chapter{Contact information}
+Chen Chen: \href{mailto:cccche@ucdavis.edu}{cccche@ucdavis.edu} \\
+Yiru Sun: \href{mailto:yrsun@ucdavis.edu}{yrsun@ucdavis.edu} \\
+Hengjiu Kang: \href{mailto:hjkang@ucdavis.edu}{hjkang@ucdavis.edu}  \url{khjtony.github.io}
+
+\chapter{Source code}
+\lstinputlisting[language=sh, caption=mmul\_acc]{login.txt}
+\lstinputlisting[language=C,caption=mmul\_c]{mmul.c}
+\lstinputlisting[language=C,caption=mmul\_omp]{mmul_omp.c}
+\lstinputlisting[language=C,caption=mmul\_cuda]{mmul_cuda.c}
+\lstinputlisting[language=C,caption=data\_copy\_CUDA]{data_copy_CUDA.c}
+\lstinputlisting[language=C,caption=mmul\_acc]{mmul_acc.c}
+\lstinputlisting[language=C,caption=path]{path.c}
+\lstinputlisting[language=C,caption=path\_acc]{path_acc.c}
+\lstinputlisting[language=C,caption=Brightcounter]{countstar.c}
+\lstinputlisting[language=C,caption=Brightcounter\_acc]{countstar_acc.c}
+
+\end{appendices}
+
+
+\begin{thebibliography}{9}
+\bibitem{matloff} 
+Norm Matloff. 
+\textit{Programming on Parallel Machines}. 
+University of California, Davis, 1993.
+
+\bibitem{JEFF LARKIN}
+Jeff Larkin (2015)
+\textit{COMPARING OPENACC AND OPENMP PERFORMANCE AND PROGRAMMABILITY.} http://on-demand.gputechconf.com/gtc/2015/presentation/S5196-Jeff-Larkin.pdf
+
+\bibitem{omni}
+Omni Compiler,
+\textit{http://omni-compiler.org/}
+
+\bibitem{openacc}
+OpenACC official site, 
+\textit{http://www.openacc.org/}
+
+\bibitem{openaccNvidia}
+OpenACC at Nvidia:
+\textit{https://developer.nvidia.com/openacc}
+
+% (need to complete the quote)
+
+
+\end{thebibliography}
+ 
+\end{document}
+
+
+
+\end{document}
+
+% References for different structures of Latex book style
+% -1 \part{part}
+% 0	\chapter{chapter}
+% 1	\section{section}
+% 2	\subsection{subsection}
+% 3	\subsubsection{subsubsection}
+% 4	\paragraph{paragraph}
+% 5	\subparagraph{subparagraph}

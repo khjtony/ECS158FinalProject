@@ -1,0 +1,5 @@
+cmake_minimum_required(VERSION 2.8)
+project( MazeSolver )
+find_package( OpenCV REQUIRED )
+add_executable( maze mazesolver.cpp )
+TARGET_LINK_LIBRARIES( maze ${OpenCV_LIBS} )

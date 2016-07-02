@@ -1,0 +1,5 @@
+1. Confirm: OpenACC based on the C version of the multiplication?
+
+2. Line 185 how?!?! (reduction function!)
+
+3. Line 179 got a problem?
