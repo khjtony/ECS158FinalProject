@@ -2,10 +2,13 @@
 #include "stdlib.h"
 #include "math.h"
 
+
+
 #define DEBUG
 
 // REMEMBER THE X,Y MEANING
 // WHICH IS DIFFERNET THAN MATRIX
+// This A star path finder does not have weight feather
 
 typedef struct
 {
@@ -30,10 +33,10 @@ void update_pix(pix_t* map_mask, Location2D_t previous,  Location2D_t current, i
         return;
     }
     int distance = (int)(ceil(sqrt(pow(current.x-start.x,2)+pow(current.y-start.y,2))));
-    printf("Updated pix: now update pix (%d, %d):%d \n", current.x ,current.y,map_mask[current.x+current.y*width].current_cost);
+    // printf("Updated pix: now update pix (%d, %d):%d \n", current.x ,current.y,map_mask[current.x+current.y*width].current_cost);
     if (map_mask[current.x+current.y*width].current_cost==-1 ||
         distance< map_mask[current.x+current.y*width].current_cost){
-        printf("Updated pix: update pix (%d,%d)!\n", current.x, current.y);
+        // printf("Updated pix: update pix (%d,%d)!\n", current.x, current.y);
         map_mask[current.x+current.y*width].current_cost = distance;
         map_mask[current.x+current.y*width].frontier=1;
         map_mask[current.x+current.y*width].priority=distance+(int)(ceil(sqrt(pow(current.x-stop.x,2)+pow(current.y-stop.y,2))));
@@ -141,6 +144,7 @@ void A_star(int* map, int width, int height, int* route, int* route_len,
     int i=0;
     while (!(current.x == start.x && current.y == start.y)){
         route[i] = current.y*width+current.x;
+
         printf("Now is: (%d, %d), ", current.x, current.y);
         current = map_mask[current.x+current.y*width].came_from;
         printf("Found previous (%d, %d)\n", current.x, current.y);
@@ -153,30 +157,46 @@ void A_star(int* map, int width, int height, int* route, int* route_len,
 
 
 
-int main(int argc, char const *argv[])
-{
-    // dummy map
-    int width = 5;
-    int height=5;
-    int map[]={1,1,1,1,1,
-                0,0,0,0,1,
-                1,1,1,1,1,
-                1,0,0,0,0,
-                1,1,1,1,1};
-    int route[width*height];
-    int route_len=0;
-    Location2D_t start;
-    start.x=0;
-    start.y=0;
-    Location2D_t stop;
-    stop.x=4;
-    stop.y=4;
-    // put into astar solver
-    A_star(map, width, height, route, &route_len, start, stop);
-    // get back route
-    int i=0;
-    for (i=route_len-1;i>=0;i--){
-        printf("%d->", route[i]);
-    }
-    return 0;
-}
+
+// int main(int argc, char const *argv[])
+// {
+//     // dummy map
+//     int width = 5;
+//     int height=5;
+//     int map[]={1,1,1,1,1,
+//                 1,0,0,0,1,
+//                 1,1,1,0,1,
+//                 1,0,0,0,1,
+//                 1,1,1,1,1};
+//     int route[width*height];
+//     int route_len=0;
+
+//     // read from file
+//     // printf("Width and height is: (%d, %d)\n",width, height );
+
+//     //create map
+//     // int map[width*height];
+//     // while(getline(&line, &len, fptr)!=-1){
+//     //     sscanf(line, "%d", &value);
+//     //     map[count]=value;
+//     //     count++;
+//     // }
+//     // fclose(fptr);
+
+
+//     Location2D_t start;
+//     start.x=0;
+//     start.y=0;
+//     Location2D_t stop;
+//     stop.x=4;
+//     stop.y=4;
+//     // put into astar solver
+//     printf("Start to solve\n");
+//     A_star(map, width, height, route, &route_len, start, stop);
+//     // get back route
+//     int i=0;
+//     for (i=route_len-1;i>=0;i--){
+//         printf("%d->", route[i]);
+//     }
+//     return 0;
+// }

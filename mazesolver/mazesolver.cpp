@@ -4,8 +4,8 @@
 #include "opencv2/opencv.hpp"
 
 
-#include "implementation.cpp"
-
+// #include "implementation.cpp"
+#include "hjk_astar.c"
 using namespace cv;
 using namespace std;
 
@@ -99,28 +99,33 @@ void mouse_cb(int event, int x, int y, int flags, void* userdata) {
     return;
 }
 
-void solve_maze(Mat& in_img){
+void solve_maze(Mat& in_img, Point in_start, Point in_stop){
     Size imgsize = in_img.size();
-    cout<<"Size is: ("<<imgsize.width<<","<<imgsize.height<<")"<<endl;
-    myStatus = CAM_PAUSE;
-    cout<<"Depth is: "<<in_img.depth()<<" and channel is: "<<in_img.channels()<<endl;
+    int map[imgsize.width*imgsize.height];
+    int i=0;
 
-
-    GridWithWeights grid(imgsize.width, imgsize.height);
-    for (int i=0;i<imgsize.width;i++){
-        for (int j=0;j<imgsize.height;j++){
-            if (in_img.at<uint8_t>(j,i)==0){
-                grid.walls.insert(SquareGrid::Location {i, j});
-            }
-        }
+    for (i=0;i<imgsize.width*imgsize.height;i++){
+        map[i] = (int)in_img.at<uint8_t>(i);
+        // printf("%d ", map[i]);
     }
 
-    SquareGrid::Location start{startAndend_v[0].x, startAndend_v[0].y};
-    SquareGrid::Location goal{startAndend_v[1].x, startAndend_v[1].y};
-    unordered_map<SquareGrid::Location, SquareGrid::Location> came_from;
-    unordered_map<SquareGrid::Location, double> cost_so_far;
-    a_star_search(grid, start, goal, came_from, cost_so_far);
-    vector<SquareGrid::Location> path = reconstruct_path(start, goal, came_from);
+    int route[imgsize.width*imgsize.height];
+    int route_len=0;
+
+    Location2D_t start;
+    start.x = in_start.x;
+    start.y = in_start.y+5;
+    Location2D_t stop;
+    stop.x = in_stop.x;
+    stop.y = in_stop.y+5;
+
+    A_star(map, imgsize.width, imgsize.height, route, &route_len, start, stop);
+
+    i=0;
+    for (i=route_len-1;i>=0;i--){
+        printf("%d->", route[i]);
+        circle(in_img, Point(route[i]%imgsize.width, route[i]/imgsize.width), 1, Scalar(0,255,0), 1);
+    }
 
 
     // vector<Point> tempptr;
@@ -246,7 +251,11 @@ int main(int, char**)
                         break;
                     case 's':
                         // selectmode toggle key
-                        selectStatus = SELECT_POINT;
+                        if (selectStatus == SELECT_POINT){
+                            selectStatus = SELECT_ROI;
+                        }else{
+                            selectStatus = SELECT_POINT;
+                        }
                         cout<<"selectStatus changed to SELECT_POINT"<<endl;
                         imshow_flag = false;
                         break;
@@ -267,7 +276,7 @@ int main(int, char**)
             case SOLVE:
                 // print mat
 
-                solve_maze(pause_img);
+                solve_maze(pause_img, startAndend_v[0], startAndend_v[1]);
                 imshow("MazeSolver", pause_img);
                 myStatus = CAM_PAUSE;
                 break;
