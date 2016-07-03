@@ -4,6 +4,8 @@
 #include "opencv2/opencv.hpp"
 
 
+#include "implementation.cpp"
+
 using namespace cv;
 using namespace std;
 
@@ -33,7 +35,7 @@ STATUS_T myStatus=INIT;
 STATUS_T selectStatus = SELECT_ROI;
 std::vector<Point> point_v;
 std::vector<Point> startAndend_v;
-Point** point_ptr;
+
 bool imshow_flag = false;
 
 void COLOR2BIN(Mat src, Mat& dst, int threshold_value);
@@ -97,7 +99,42 @@ void mouse_cb(int event, int x, int y, int flags, void* userdata) {
     return;
 }
 
+void solve_maze(Mat& in_img){
+    Size imgsize = in_img.size();
+    cout<<"Size is: ("<<imgsize.width<<","<<imgsize.height<<")"<<endl;
+    myStatus = CAM_PAUSE;
+    cout<<"Depth is: "<<in_img.depth()<<" and channel is: "<<in_img.channels()<<endl;
 
+
+    GridWithWeights grid(imgsize.width, imgsize.height);
+    for (int i=0;i<imgsize.width;i++){
+        for (int j=0;j<imgsize.height;j++){
+            if (in_img.at<uint8_t>(j,i)==0){
+                grid.walls.insert(SquareGrid::Location {i, j});
+            }
+        }
+    }
+
+    SquareGrid::Location start{startAndend_v[0].x, startAndend_v[0].y};
+    SquareGrid::Location goal{startAndend_v[1].x, startAndend_v[1].y};
+    unordered_map<SquareGrid::Location, SquareGrid::Location> came_from;
+    unordered_map<SquareGrid::Location, double> cost_so_far;
+    a_star_search(grid, start, goal, came_from, cost_so_far);
+    vector<SquareGrid::Location> path = reconstruct_path(start, goal, came_from);
+
+
+    // vector<Point> tempptr;
+    // vector<vector<Point> > temp_ptrptr;
+    // int _x, _y;
+    // for(int i=0;i<path.size()-1;i++){
+    //     tie (_x,_y) = path[i];
+    //     tempptr.push_back(Point(_x,_y));
+    // }
+    // temp_ptrptr.clear();
+    // temp_ptrptr.push_back(tempptr);
+    // polylines(in_img, temp_ptrptr, true, Scalar(0,255,0),5);
+
+}
 
 int main(int, char**)
 {
@@ -162,17 +199,17 @@ int main(int, char**)
                     point_ptr.clear();
                     point_ptr.push_back(point_v); 
                     if (point_v.size()>1){
-                        polylines(pause_img, point_ptr, true, Scalar(0,0,0),7);
+                        polylines(pause_img, point_ptr, true, Scalar(0,0,0),10);
                     }
 
                     if(startAndend_v.size()>0){
-                        circle(pause_img, startAndend_v[0], 4, Scalar(0,0,0), 4);
+                        circle(pause_img, startAndend_v[0], 2, Scalar(0,0,0), 2);
                         sprintf(dummyText, "Start");// Set the mark text
                         putText(pause_img, dummyText, Point(startAndend_v[0].x+6, startAndend_v[0].y), FONT_HERSHEY_PLAIN,
                             1, Scalar(0,0,0),2);
                     }
                     if(startAndend_v.size()>1){
-                        circle(pause_img, startAndend_v[1], 4, Scalar(0,0,0), 4);
+                        circle(pause_img, startAndend_v[1], 2, Scalar(0,0,0), 2);
                         sprintf(dummyText, "END");// Set the mark text
                         putText(pause_img, dummyText, Point(startAndend_v[1].x+6, startAndend_v[1].y), FONT_HERSHEY_PLAIN,
                             1, Scalar(0,0,0),2);
@@ -212,6 +249,7 @@ int main(int, char**)
                         selectStatus = SELECT_POINT;
                         cout<<"selectStatus changed to SELECT_POINT"<<endl;
                         imshow_flag = false;
+                        break;
                     case 13:
                         // enter key, to slove the maze
                         myStatus = SOLVE;
@@ -227,6 +265,11 @@ int main(int, char**)
             case SELECT_POINT:
                 break;
             case SOLVE:
+                // print mat
+
+                solve_maze(pause_img);
+                imshow("MazeSolver", pause_img);
+                myStatus = CAM_PAUSE;
                 break;
             case SAVE:
                 break;
