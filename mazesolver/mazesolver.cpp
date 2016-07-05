@@ -99,32 +99,58 @@ void mouse_cb(int event, int x, int y, int flags, void* userdata) {
     return;
 }
 
-void solve_maze(Mat& in_img, Point in_start, Point in_stop){
+void solve_maze(Mat& in_img, Point in_start, Point in_stop, std::vector<Point> POI){
     Size imgsize = in_img.size();
-    int map[imgsize.width*imgsize.height];
-    int i=0;
 
-    for (i=0;i<imgsize.width*imgsize.height;i++){
-        map[i] = (int)in_img.at<uint8_t>(i);
-        // printf("%d ", map[i]);
+    int i=0,j=0,count=0;
+
+    // find boundary of POI
+    int left_x=imgsize.width, right_x=0, up_y=imgsize.height, down_y=0;
+    for (i=0;i<POI.size();i++){
+        if (POI[i].x<left_x){
+            left_x = POI[i].x;
+        }
+        if (POI[i].x>right_x){
+            right_x = POI[i].x;
+        }
+        if (POI[i].y<up_y){
+            up_y = POI[i].y;
+        }
+        if (POI[i].y>down_y){
+            down_y = POI[i].y;
+        }
     }
 
-    int route[imgsize.width*imgsize.height];
+    printf("The boundary is: (%d, %d), (%d, %d)\n", left_x, up_y, right_x, down_y);
+    printf("The type of Mat is: %d\n", in_img.type()==CV_8U? 1:0 );
+    int map[(right_x-left_x)*(down_y-up_y)];
+    for(j=up_y;j<down_y;j++){
+        for (i=left_x;i<right_x;i++){
+            map[count] = (int)in_img.at<uint8_t>(j,i);
+            printf("%d ", map[count]);
+            count++;
+        }
+        // printf("\n");
+        
+    }
+
+    Location2D_t route[(right_x-left_x)*(down_y-up_y)];
     int route_len=0;
 
     Location2D_t start;
-    start.x = in_start.x;
-    start.y = in_start.y+5;
+    start.x = in_start.x-left_x+1;
+    start.y = in_start.y-up_y+1;
     Location2D_t stop;
-    stop.x = in_stop.x;
-    stop.y = in_stop.y+5;
+    stop.x = in_stop.x-left_x-1;
+    stop.y = in_stop.y-up_y-1;
 
-    A_star(map, imgsize.width, imgsize.height, route, &route_len, start, stop);
+    printf("The sent mat size is %d*%d\n",right_x-left_x, down_y-up_y );
+    A_star(map, right_x-left_x, down_y-up_y, route, &route_len, start, stop);
 
     i=0;
     for (i=route_len-1;i>=0;i--){
-        printf("%d->", route[i]);
-        circle(in_img, Point(route[i]%imgsize.width, route[i]/imgsize.width), 1, Scalar(0,255,0), 1);
+        // printf("(%d,%d)->", route[i].x, route[i].y);
+        circle(in_img, Point(route[i].x+left_x, route[i].y+up_y), 1, Scalar(0,0,0), 1);
     }
 
 
@@ -143,7 +169,8 @@ void solve_maze(Mat& in_img, Point in_start, Point in_stop){
 
 int main(int, char**)
 {
-    VideoCapture cap(0); // open the default camera
+    int cam_num=0;
+    VideoCapture cap(cam_num); // open the default camera
     if(!cap.isOpened())  // check if we succeeded
         return -1;
 
@@ -208,13 +235,13 @@ int main(int, char**)
                     }
 
                     if(startAndend_v.size()>0){
-                        circle(pause_img, startAndend_v[0], 2, Scalar(0,0,0), 2);
+                        circle(pause_img, startAndend_v[0], 1, Scalar(0,0,0), 1);
                         sprintf(dummyText, "Start");// Set the mark text
                         putText(pause_img, dummyText, Point(startAndend_v[0].x+6, startAndend_v[0].y), FONT_HERSHEY_PLAIN,
                             1, Scalar(0,0,0),2);
                     }
                     if(startAndend_v.size()>1){
-                        circle(pause_img, startAndend_v[1], 2, Scalar(0,0,0), 2);
+                        circle(pause_img, startAndend_v[1], 1, Scalar(0,0,0), 1);
                         sprintf(dummyText, "END");// Set the mark text
                         putText(pause_img, dummyText, Point(startAndend_v[1].x+6, startAndend_v[1].y), FONT_HERSHEY_PLAIN,
                             1, Scalar(0,0,0),2);
@@ -275,9 +302,9 @@ int main(int, char**)
                 break;
             case SOLVE:
                 // print mat
-
-                solve_maze(pause_img, startAndend_v[0], startAndend_v[1]);
+                solve_maze(pause_img, startAndend_v[0], startAndend_v[1], point_v);
                 imshow("MazeSolver", pause_img);
+                selectStatus = SELECT_ROI;
                 myStatus = CAM_PAUSE;
                 break;
             case SAVE:
